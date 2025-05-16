@@ -4,14 +4,14 @@ from requests.auth import HTTPBasicAuth
 from tabulate import tabulate
 
 # ------------------ CONFIG ------------------
-KC_URL    = "http://localhost:8081"
-KC_REALM  = "test"
+KC_URL    = "https://openstack-test-1.rugghiaeassociati.com:9444"
+KC_REALM  = "tcp"
 KC_CLIENT = "alfresco"
 KC_SECRET = "6f70a28f-98cd-41ca-8f2f-368a8797d708"
-KC_USER   = "f.mayer"
-KC_PASS   = "Ttclab@2025!"
+KC_USER   = "sync_user"
+KC_PASS   = "sync_user"
 
-ALF_URL   = "http://localhost:8080/alfresco/api/-default-/public/alfresco/versions/1"
+ALF_URL   = "https://openstack-test-1.rugghiaeassociati.com:8081/alfresco/api/-default-/public/alfresco/versions/1"
 ALF_ADM   = "admin"
 ALF_PWD   = "admin"
 # --------------------------------------------
@@ -98,9 +98,24 @@ def alf_add_member(name, user):
     else:
         print(f"      · [Errore {r.status_code}] aggiungendo {user}: {r.text.splitlines()[0]}")
 
+def alf_create_user(user):
+    payload = {
+        "id": user["username"],
+        "firstName": user.get("firstName", "-"),
+        "lastName": user.get("lastName", "-"),
+        "email": user.get("email", "-"),
+        "password": "Test1234@"
+    }
+    r = requests.post(f"{ALF_URL}/people", json=payload, auth=AUTH)
+    if r.status_code in (200,201):
+        print(f"   · [Info] Creato utente {user['username']}")
+    elif r.status_code == 409:
+        print(f"   · [Info] Utente {user['username']} già esistente")
+    else:
+        print(f"   · [Errore {r.status_code}] creando {user['username']}: {r.text}")
+
 # ——— Main —————————————————————————————————————
 def main():
-    # 1) ottieni token e dati Keycloak
     try:
         token = kc_token()
     except Exception as e:
@@ -110,16 +125,13 @@ def main():
     kc_list  = kc_groups(token)
     kc_names = { g["name"] for g in kc_list }
 
-    # 2) costruisci insieme di ID Alfresco attesi
     expected_alf = {
         name if name.upper().startswith("GROUP_") else f"GROUP_{name}"
         for name in kc_names
     }
 
-    # 3) leggi tutti i gruppi Alfresco
     all_alf = alf_groups()
 
-    # 4) individua e cancella quelli non più in Keycloak
     skip_prefixes = (
         "GROUP_ALFRESCO_", "GROUP_EMAIL_",
         "GROUP_SITE_", "GROUP_site_",
@@ -136,11 +148,9 @@ def main():
     for g in to_remove:
         alf_delete_group(g)
 
-    # 5) rilegge lo stato Alfresco dopo le cancellazioni
     ag = alf_groups()
     au = alf_users()
 
-    # 6) report iniziali
     print("\n\033[94mGruppi Alfresco:\033[0m")
     print(tabulate([[g] for g in sorted(ag)], ["ID"], tablefmt="grid"))
     print("\n\033[94mUtenti Alfresco:\033[0m")
@@ -154,17 +164,23 @@ def main():
     for grp in kc_list:
         name = grp["name"]
         print(f"[Gruppo] {name}")
+        
         if (name if name.upper().startswith("GROUP_") else f"GROUP_{name}") not in ag:
             alf_create_group(name)
+
         for m in kc_members(token, grp["id"]):
             u = m["username"]
+
+            if u not in au:
+                print(f"   · crea utente {u} in Alfresco")
+                alf_create_user(m)
+
             print(f"   · sync {u}")
             alf_add_member(name, u)
-            synced.append([u, m.get("email","-"), m.get("firstName","-"), m.get("lastName","-")])
+            synced.append([u, m.get("email", "-"), m.get("firstName", "-"), m.get("lastName", "-")])
 
     print("\n\033[92mMembri sincronizzati:\033[0m")
-    print(tabulate(synced, ["Username","Email","First","Last"], tablefmt="grid"))
-
+    print(tabulate(synced, ["Username", "Email", "First", "Last"], tablefmt="grid"))
 
 if __name__ == "__main__":
     main()

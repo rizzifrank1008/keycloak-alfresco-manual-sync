@@ -1,11 +1,11 @@
 import requests
 
-KEYCLOAK_URL = "http://localhost:8081"
-KEYCLOAK_REALM = "test"
+KEYCLOAK_URL = "https://openstack-test-1.rugghiaeassociati.com:9444"
+KEYCLOAK_REALM = "tcp"
 KEYCLOAK_CLIENT_ID = "alfresco"
 KEYCLOAK_CLIENT_SECRET = "6f70a28f-98cd-41ca-8f2f-368a8797d708"
-KEYCLOAK_USERNAME = "f.mayer"
-KEYCLOAK_PASSWORD = "Ttclab@2025!"
+KEYCLOAK_USERNAME = "sync_user"
+KEYCLOAK_PASSWORD = "sync_user"
 
 url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
 data = {
